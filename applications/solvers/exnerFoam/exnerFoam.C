@@ -24,13 +24,10 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Application
-    suspensionFoam
-
-Group
-    grpBasicSolvers
+    exnerFoam
 
 Description
-    Scalar transport and incompressible turbulent flow solver.
+    Idealized Exner solver.
 
 \*---------------------------------------------------------------------------*/
 //    \heading Solver details
@@ -99,27 +96,46 @@ int main(int argc, char *argv[])
         // zb match bed level
         zb = - bed.aMesh().areaCentres() & eg;
 
+        // face normal vectors
+        const vectorField& nFaces = bed.aMesh().faceAreaNormals().internalField();
+
         // compute bedload flux based on H - zb
         forAll(bed.aMesh().areaCentres(), facei)
         {
             vector ui = Q[facei] / (H[facei] - zb[facei]);
+            scalar magUi = Foam::mag(ui);
+            // make ui tangential to bed
+            ui += - (ui & nFaces[facei]) * nFaces[facei];
+            ui *= magUi / Foam::mag(ui);
             qb[facei] = alphaQb * Foam::pow(ui, betaQb-1) * ui;
         }
-        //vectorField eu = U / mag(U);
-        //qb = alphaQb * Foam::pow(Q, betaQb) / Foam::pow(H-zb, betaQb);
+        // vectorField eu = U / mag(U);
+        // qb = alphaQb * Foam::pow(Q, betaQb) / Foam::pow(H-zb, betaQb);
 
         qb.correctBoundaryConditions();
+
+        phiqb = fac::interpolate(qb) & bed.aMesh().Le();
 
         // explicit resolution
         faScalarMatrix exnerEqn
         (
-            fam::ddt(dzb)
+            fam::ddt(zb)
             ==
           - fac::div(qb)
-          //- fac::div(qav)
+          // - fac::div(qav)
         );
 
         exnerEqn.solve();
+
+        dzb = zb - zb.oldTime();
+
+        // for(int edgei=0; edgei < bed.aMesh().nInternalEdges(); edgei++)
+        // {
+        //     const labelList& owner = bed.aMesh().owner();
+        //     Info << "edge " << edgei << "; qb_owner = " << qb[owner[edgei]]
+        //         << "; phiqb = " << phiqb[edgei]
+        //         << "; dzbi = " << dzb[owner[edgei]] << endl;
+        // }
 
         #include "moveMesh.H"
 

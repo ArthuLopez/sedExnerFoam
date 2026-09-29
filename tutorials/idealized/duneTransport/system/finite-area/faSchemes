@@ -16,16 +16,17 @@ FoamFile
 
 ddtSchemes
 {
-    ddt(dzb)        Euler;
+    ddt(zb)        Euler;
 }
 
 gradSchemes
 {
+    default         Gauss linear;
 }
 
 divSchemes
 {
-    div(qb)         Gauss linear;
+    div(qb)         Gauss linearUpwind phiqb;
 }
 
 laplacianSchemes

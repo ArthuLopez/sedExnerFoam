@@ -13,7 +13,7 @@ Hz = 1.  # domain height
 Hd = 0.1  # dune height
 
 x0d = 2.  # initial x-coordinates of cone center
-sigmaD = 0.1  # width of dune
+sigmaD = 0.5  # width of dune
 
 newlines = []
 
@@ -38,7 +38,7 @@ with open(f"{path}/points", "r") as f:
             z = zb + z * (1 - zb / Hz)
             zs = str(round(z, 10))
             newline = f"({xs} {ys} {zs})\n"
-            print(z)
+            # print(z)
         newPoints.write(newline)
 
 newPoints.close()
