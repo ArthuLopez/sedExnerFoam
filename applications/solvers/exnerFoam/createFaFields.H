@@ -65,7 +65,7 @@ if (betaRepDeg <= 0 or betaRepDeg >= 90)
         << "repose angle must be in the interval 0 - 90" << endl;
     Info << abort(FatalError) << endl;
 }
-scalar betaRep = degToRad(betaRepDeg);
+// scalar betaRep = degToRad(betaRepDeg);
 
 areaVectorField Q
 (
