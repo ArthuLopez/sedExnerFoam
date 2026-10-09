@@ -34,6 +34,13 @@ IOdictionary bedloadProperties
     )
 );
 
+dimensionedScalar qSmall
+(
+    "qSmall",
+    dimensionSet(0, 2, -1, 0, 0, 0, 0),
+    SMALL
+);
+
 // Instantiate sedimentBed object
 Info << "Instantiate sedimentBed" << endl;
 sedimentBed bed(bedloadProperties, mesh, g);
@@ -48,6 +55,54 @@ const dictionary bedloadModelDict = bedloadProperties.subDict("bedloadModel");
 //dimensionedScalar alphaQb("alpha", bedloadModelDict);
 scalar alphaQb(bedloadModelDict.get<scalar>("alpha"));
 scalar betaQb(bedloadModelDict.get<scalar>("beta"));
+
+bool switchAvalanche = false;
+scalar qav0;
+
+word avalancheKey = bedloadModelDict.lookupOrDefault<word>("avalanche", "off");
+
+if(avalancheKey == "on")
+{
+    switchAvalanche = true;
+    qav0 = bedloadModelDict.get<scalar>("Qav");
+    Info << "avalanching enabled" << endl;
+}
+else
+{
+    Info << "avalanche keyword was either \"off\" or unrecognized, avalanche disabled" << endl;
+}
+
+bool switchSaturation = false;
+dimensionedScalar Lsat("Lsat", dimLength, 0.0);
+dimensionedScalar Tsat("Tsat", dimTime, 0.0);
+
+word saturationKey = bedloadModelDict.lookupOrDefault<word>("saturation", "off");
+
+if(saturationKey == "on")
+{
+    switchSaturation = true;
+    
+    Tsat = dimensionedScalar
+    (
+        "Tsat",
+        dimTime,
+        bedloadModelDict
+    );
+
+    Lsat = dimensionedScalar
+    (
+        "Lsat",
+        dimLength,
+        bedloadModelDict
+    );
+
+    Info << "saturation enabled, with Lsat = " << Lsat.value() << "m; Tsat = " << Tsat.value() << "s" << endl;
+}
+else
+{
+    Info << "saturation keyword was either \"off\" or unrecognized, saturation disabled" << endl;
+}
+
 
 // points displacements values for mesh motion
 autoPtr<vectorField> dispValsPtr;
@@ -65,7 +120,7 @@ if (betaRepDeg <= 0 or betaRepDeg >= 90)
         << "repose angle must be in the interval 0 - 90" << endl;
     Info << abort(FatalError) << endl;
 }
-// scalar betaRep = degToRad(betaRepDeg);
+scalar betaRep = degToRad(betaRepDeg);
 
 areaVectorField Q
 (
@@ -175,6 +230,20 @@ edgeScalarField phiqb
     fac::interpolate(qb) & bed.aMesh().Le()
 );
 
+areaVectorField qsat
+(
+    IOobject
+    (
+        "qsat",
+        runTime.timeName(),
+        bed.aMesh(),
+        IOobject::MUST_READ,
+        IOobject::AUTO_WRITE
+    ),
+    bed.aMesh()
+);
+
+
 areaVectorField qav
 (
     IOobject
@@ -215,3 +284,4 @@ areaScalarField dH
     bed.aMesh(),
     dimensionedScalar(dimLength, Zero)
 );
+

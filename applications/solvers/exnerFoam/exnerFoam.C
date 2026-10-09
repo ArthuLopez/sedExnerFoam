@@ -102,19 +102,67 @@ int main(int argc, char *argv[])
         // compute bedload flux based on H - zb
         forAll(bed.aMesh().areaCentres(), facei)
         {
+
+            // bedload computation
             vector ui = Q[facei] / (H[facei] - zb[facei]);
             scalar magUi = Foam::mag(ui);
             // make ui tangential to bed
-            ui += - (ui & nFaces[facei]) * nFaces[facei];
-            ui *= magUi / Foam::mag(ui);
-            qb[facei] = alphaQb * Foam::pow(ui, betaQb-1) * ui;
+
+	    vector t = ui - (ui & nFaces[facei]) * nFaces[facei];
+            t /= Foam::mag(t);
+
+            qsat[facei] = alphaQb * Foam::pow(magUi, betaQb) * t;
+
+	    beta[facei] = Foam::acos(nFaces[facei] & eg);
+            // slope direction
+            
+            if(switchAvalanche)
+            {
+            	vector slopeDir = eg - nFaces[facei] * (eg & nFaces[facei]);
+            	slopeDir /= (Foam::mag(slopeDir) + SMALL);
+
+            	qav[facei] = qav0*slopeDir*Foam::pos(beta[facei] - betaRep)*(Foam::tanh(Foam::tan(beta[facei])) - Foam::tanh(Foam::tan(betaRep)))
+                  / (1 - Foam::tanh(Foam::tan(betaRep)));
+            }
+            else
+            {
+		qav[facei] = Zero;
+            }
+
         }
-        // vectorField eu = U / mag(U);
-        // qb = alphaQb * Foam::pow(Q, betaQb) / Foam::pow(H-zb, betaQb);
+
+        Info << "max Q avalanching: " << Foam::max(Foam::mag(qav)) << endl;
+        Info << "max slope: " << radToDeg()*Foam::max(beta) << "°" << endl;
+        
+	qsat.correctBoundaryConditions();
+
+	if (switchSaturation)
+	{
+
+            areaVectorField qsatHat = qsat/(Foam::mag(qsat) + qSmall);
+
+	    areaTensorField outerTensor = qsatHat * qb;
+
+    	    faVectorMatrix saturationEqn
+	    (
+    		Tsat*fam::ddt(qb)
+  		+ Lsat*fac::div(outerTensor)
+  		+ fam::Sp(1.0, qb)
+ 		==
+    		qsat
+	    );
+
+    	    saturationEqn.solve();
+      	}
+	else
+	{
+    	    qb = qsat;
+	}
 
         qb.correctBoundaryConditions();
 
         phiqb = fac::interpolate(qb) & bed.aMesh().Le();
+        phiqav = fac::interpolate(qav) & bed.aMesh().Le();
 
         // explicit resolution
         faScalarMatrix exnerEqn
@@ -122,7 +170,7 @@ int main(int argc, char *argv[])
             fam::ddt(zb)
             ==
           - fac::div(qb)
-          // - fac::div(qav)
+          - fac::div(qav)
         );
 
         exnerEqn.solve();
@@ -165,3 +213,4 @@ int main(int argc, char *argv[])
 
 
 // ************************************************************************* //
+
